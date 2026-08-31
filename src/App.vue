@@ -7,12 +7,13 @@
       </div>
       <div class="flex items-center space-x-2">
         <span class="inline-block w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></span>
-        <span class="text-xs font-medium">System Online (Lokal)</span>
+        <span class="text-xs font-medium">System Online (MySQL + FastAPI)</span>
       </div>
     </header>
 
     <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 space-y-6">
 
+      <!-- 1. Patienten-Erkennung -->
       <section class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
         <h2 class="text-lg font-semibold text-slate-700 mb-3 flex items-center">
           <span class="bg-indigo-100 text-indigo-700 w-7 h-7 rounded-full inline-flex items-center justify-center text-sm mr-2">1</span>
@@ -25,7 +26,7 @@
             <input 
               type="text" 
               v-model="searchQuery" 
-              placeholder="z.B. Anna Schmidt oder 12.05..." 
+              placeholder="z.B. Anna Schmidt oder 14.05..." 
               class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none text-base"
             />
           </div>
@@ -70,6 +71,7 @@
         </div>
       </section>
 
+      <!-- 2. Therapie-Sitzung erfassen -->
       <section v-if="activePatient" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4 transition-all">
         <h2 class="text-lg font-semibold text-slate-700 flex items-center">
           <span class="bg-indigo-100 text-indigo-700 w-7 h-7 rounded-full inline-flex items-center justify-center text-sm mr-2">2</span>
@@ -100,7 +102,7 @@
           <select v-model="selectedTextBaustein" class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none mb-3 bg-white text-base">
             <template v-for="(category, catName) in textBausteine" :key="catName">
               <optgroup :label="catName">
-                <option v-for="baustein in category" :value="baustein">{{ baustein }}</option>
+                <option v-for="baustein in category" :value="baustein" :key="baustein">{{ baustein }}</option>
               </optgroup>
             </template>
           </select>
@@ -120,10 +122,11 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
           </svg>
-          <span>Sitzung speichern (DB)</span>
+          <span>Sitzung speichern (MySQL)</span>
         </button>
       </section>
 
+      <!-- 3. Bericht / Dokument generieren -->
       <section v-if="activePatient" class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
         <h2 class="text-lg font-semibold text-slate-700 flex items-center">
           <span class="bg-indigo-100 text-indigo-700 w-7 h-7 rounded-full inline-flex items-center justify-center text-sm mr-2">3</span>
@@ -152,6 +155,7 @@
         </div>
       </section>
 
+      <!-- Benachrichtigungen -->
       <div v-if="notification" :class="['p-4 rounded-xl text-white font-medium shadow-lg flex items-center justify-between', notification.type === 'success' ? 'bg-emerald-600' : 'bg-amber-600']">
         <span>{{ notification.message }}</span>
         <button @click="notification = null" class="text-white font-bold px-2">&times;</button>
@@ -162,14 +166,24 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
-// Mock-Datenbank (entspricht der PostgreSQL-Struktur aus der Doku)
-const patients = ref([
-  { id: 1, name: 'Anna Schmidt', geburtsdatum: '14.05.1982', qr_code: 'QR-ANNA-001' },
-  { id: 2, name: 'Michael Weber', geburtsdatum: '22.11.1975', qr_code: 'QR-MICHAEL-002' },
-  { id: 3, name: 'Sabine Müller', geburtsdatum: '03.09.1990', qr_code: 'QR-SABINE-003' }
-])
+// Echte Datenbank-Anbindung via FastAPI Backend
+const patients = ref([])
+
+onMounted(async () => {
+  try {
+    const response = await fetch('http://127.0.0.1:8000/patients')
+    if (response.ok) {
+      patients.value = await response.json()
+    } else {
+      showNotification('Fehler beim Laden der Patienten aus der Datenbank.', 'error')
+    }
+  } catch (error) {
+    console.error('Verbindungsfehler:', error)
+    showNotification('Keine Verbindung zum FastAPI-Backend möglich.', 'error')
+  }
+})
 
 const availableTags = [
   '#Motorik', '#Gleichgewicht', '#GuteTagesform', 
@@ -216,11 +230,15 @@ const filteredPatients = computed(() => {
 const selectPatient = (patient) => {
   activePatient.value = patient
   searchQuery.value = ''
-  showNotification(`Patient ${patient.name} erkannt & ausgewählt.`, 'success')
+  showNotification(`Patient ${patient.name} ausgewählt.`, 'success')
 }
 
 const simulateQrScan = () => {
-  // Simuliert den Scan der QR-Karte (wählt exemplarisch den ersten Patienten)
+  if (patients.value.length === 0) {
+    showNotification('Keine Patienten in der Datenbank gefunden.', 'error')
+    return
+  }
+  // Simuliert den Scan (wählt exemplarisch den ersten Patienten aus der DB)
   const scanned = patients.value[0]
   activePatient.value = scanned
   showNotification(`QR-Code erfolgreich gescannt: ${scanned.name}`, 'success')
@@ -234,23 +252,44 @@ const toggleTag = (tag) => {
   }
 }
 
-const saveSession = () => {
+// Sitzung an FastAPI-Backend senden und in MySQL speichern
+const saveSession = async () => {
   if (!activePatient.value) return
   
-  // Hier würde im echten Stack ein API-Call an das FastAPI Backend via POST erfolgen
-  console.log({
-    patient_id: activePatient.value.id,
-    tags: selectedTags.value,
-    textbaustein: selectedTextBaustein.value,
-    freitext: customNotes.value,
-    timestamp: new Date().toISOString()
-  })
+  // Kombiniere Textbaustein und Freitext für die Notiz
+  const kombinierterFreitext = `[Baustein: ${selectedTextBaustein.value}]\n${customNotes.value}`
 
-  showNotification('Sitzung erfolgreich in PostgreSQL gespeichert!', 'success')
-  
-  // Reset Formular für die nächste Einheit
-  selectedTags.value = []
-  customNotes.value = ''
+  const payload = {
+    patient_id: activePatient.value.id,
+    therapeut_id: "Nicole",
+    tags: selectedTags.value,
+    freitext: kombinierterFreitext,
+    textbaustein_id: null
+  }
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/sessions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      showNotification(`Sitzung erfolgreich in MySQL gespeichert! (ID: ${result.session_id})`, 'success')
+      
+      // Reset Formular für die nächste Einheit
+      selectedTags.value = []
+      customNotes.value = ''
+    } else {
+      showNotification('Fehler beim Speichern der Sitzung.', 'error')
+    }
+  } catch (error) {
+    console.error('Netzwerkfehler:', error)
+    showNotification('Verbindungsfehler beim Speichern.', 'error')
+  }
 }
 
 const generateDocument = () => {
