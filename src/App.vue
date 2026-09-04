@@ -168,38 +168,44 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 
-// Echte Datenbank-Anbindung via FastAPI Backend
+// Reaktive Variablen für Daten aus dem FastAPI-Backend
 const patients = ref([])
+const availableTags = ref([])
+const textBausteine = ref({})
 
+// Alles beim Start aus dem FastAPI-Backend laden
 onMounted(async () => {
   try {
-    const response = await fetch('http://127.0.0.1:8000/patients')
-    if (response.ok) {
-      patients.value = await response.json()
+    // 1. Patienten laden
+    const resPatients = await fetch('http://127.0.0.1:8000/patients')
+    if (resPatients.ok) {
+      patients.value = await resPatients.json()
     } else {
-      showNotification('Fehler beim Laden der Patienten aus der Datenbank.', 'error')
+      showNotification('Fehler beim Laden der Patienten.', 'error')
     }
+
+    // 2. Tags laden
+    const resTags = await fetch('http://127.0.0.1:8000/tags')
+    if (resTags.ok) {
+      availableTags.value = await resTags.json()
+    }
+
+    // 3. Textbausteine laden
+    const resBausteine = await fetch('http://127.0.0.1:8000/textbausteine')
+    if (resBausteine.ok) {
+      textBausteine.value = await resBausteine.json()
+      // Ersten Baustein als Standard vorauswählen
+      const firstCategory = Object.keys(textBausteine.value)[0]
+      if (firstCategory && textBausteine.value[firstCategory].length > 0) {
+        selectedTextBaustein.value = textBausteine.value[firstCategory][0]
+      }
+    }
+
   } catch (error) {
     console.error('Verbindungsfehler:', error)
     showNotification('Keine Verbindung zum FastAPI-Backend möglich.', 'error')
   }
 })
-
-const availableTags = [
-  '#Motorik', '#Gleichgewicht', '#GuteTagesform', 
-  '#Schmerzreduktion', '#Kraftaufbau', '#Eingeschränkt', '#Fortschritt'
-]
-
-const textBausteine = {
-  'Allgemein': [
-    'Patient kam pünktlich und motiviert zur Einheit.',
-    'Therapieverlauf stabil, Übungen wurden gut angenommen.'
-  ],
-  'Motorik & Koordination': [
-    'Feinmotorische Übungen zeigten verbesserte Koordination im Vergleich zur Vorwoche.',
-    'Grobmotorischer Aufbau stabil, Belastbarkeit gesteigert.'
-  ]
-}
 
 const templates = ref([
   { id: 1, name: 'Standard Verlaufsbericht.docx' },
@@ -211,7 +217,7 @@ const templates = ref([
 const searchQuery = ref('')
 const activePatient = ref(null)
 const selectedTags = ref([])
-const selectedTextBaustein = ref(textBausteine['Allgemein'][0])
+const selectedTextBaustein = ref('')
 const customNotes = ref('')
 const selectedTemplate = ref(1)
 const notification = ref(null)
@@ -238,7 +244,6 @@ const simulateQrScan = () => {
     showNotification('Keine Patienten in der Datenbank gefunden.', 'error')
     return
   }
-  // Simuliert den Scan (wählt exemplarisch den ersten Patienten aus der DB)
   const scanned = patients.value[0]
   activePatient.value = scanned
   showNotification(`QR-Code erfolgreich gescannt: ${scanned.name}`, 'success')
@@ -256,7 +261,6 @@ const toggleTag = (tag) => {
 const saveSession = async () => {
   if (!activePatient.value) return
   
-  // Kombiniere Textbaustein und Freitext für die Notiz
   const kombinierterFreitext = `[Baustein: ${selectedTextBaustein.value}]\n${customNotes.value}`
 
   const payload = {
@@ -280,7 +284,6 @@ const saveSession = async () => {
       const result = await response.json()
       showNotification(`Sitzung erfolgreich in MySQL gespeichert! (ID: ${result.session_id})`, 'success')
       
-      // Reset Formular für die nächste Einheit
       selectedTags.value = []
       customNotes.value = ''
     } else {
