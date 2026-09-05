@@ -162,6 +162,24 @@
       </div>
 
     </main>
+
+    <!-- Erfolgs-Pop-up (Modal) -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
+        <div class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-bold shadow-inner">
+          ✓
+        </div>
+        <h3 class="text-xl font-bold text-slate-800">Erfolgreich gespeichert!</h3>
+        <p class="text-sm text-slate-600">Die Sitzung und alle Notizen wurden sicher in der Datenbank hinterlegt.</p>
+        <button 
+          @click="showSuccessModal = false" 
+          class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl shadow transition active:scale-95"
+        >
+          Super, weiter arbeiten
+        </button>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -207,10 +225,9 @@ onMounted(async () => {
   }
 })
 
+// Nur noch den Standard Verlaufsbericht anbieten
 const templates = ref([
-  { id: 1, name: 'Standard Verlaufsbericht.docx' },
-  { id: 2, name: 'Kostenträger-Report_Ausführlich.docx' },
-  { id: 3, name: 'Kurzbericht_Arzt.docx' }
+  { id: 1, name: 'Standard Verlaufsbericht.docx' }
 ])
 
 // State Management
@@ -221,6 +238,7 @@ const selectedTextBaustein = ref('')
 const customNotes = ref('')
 const selectedTemplate = ref(1)
 const notification = ref(null)
+const showSuccessModal = ref(false)
 
 // Fuzzy-Search / Filter Logik für Patienten
 const filteredPatients = computed(() => {
@@ -281,9 +299,7 @@ const saveSession = async () => {
     })
 
     if (response.ok) {
-      const result = await response.json()
-      showNotification(`Sitzung erfolgreich in MySQL gespeichert! (ID: ${result.session_id})`, 'success')
-      
+      showSuccessModal.value = true
       selectedTags.value = []
       customNotes.value = ''
     } else {
@@ -295,8 +311,40 @@ const saveSession = async () => {
   }
 }
 
-const generateDocument = () => {
-  showNotification('Dokument wird über docxtpl generiert und heruntergeladen...', 'success')
+// Dokument für den aktiven Patienten vom Backend generieren lassen
+const generateDocument = async () => {
+  if (!activePatient.value) {
+    showNotification('Bitte zuerst einen Patienten auswählen.', 'error')
+    return
+  }
+
+  try {
+    showNotification('Generiere Verlaufsbericht für ' + activePatient.value.name + '...', 'success')
+    
+    // Anfrage an das Backend mit der spezifischen Patienten-ID
+    const response = await fetch(`http://127.0.0.1:8000/generate-doc/${activePatient.value.id}`, {
+      method: 'GET'
+    })
+
+    if (response.ok) {
+      // Datei als Blob empfangen und Download starten
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `Verlaufsbericht_${activePatient.value.name.replace(' ', '_')}.docx`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      
+      showNotification('Bericht erfolgreich heruntergeladen!', 'success')
+    } else {
+      showNotification('Fehler beim Generieren des Dokuments im Backend.', 'error')
+    }
+  } catch (error) {
+    console.error('Download-Fehler:', error)
+    showNotification('Verbindungsfehler beim Dokumenten-Download.', 'error')
+  }
 }
 
 const showNotification = (message, type = 'success') => {
