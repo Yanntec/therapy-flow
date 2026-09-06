@@ -31,15 +31,24 @@
             />
           </div>
 
-          <div class="flex items-end">
+          <div class="flex items-end space-x-2">
             <button 
-              @click="simulateQrScan" 
-              class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-3 px-4 rounded-lg transition flex items-center justify-center space-x-2 active:scale-95"
+              @click="simulateQrScan('QR-ANNA-001')" 
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-1 active:scale-95 text-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
               </svg>
-              <span>Patientenkarte scannen (QR)</span>
+              <span>Scan Anna</span>
+            </button>
+            <button 
+              @click="simulateQrScan('QR-MAX-002')" 
+              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-1 active:scale-95 text-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              <span>Scan Max</span>
             </button>
           </div>
         </div>
@@ -63,7 +72,7 @@
           <div>
             <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">Aktiver Patient</span>
             <p class="text-lg font-bold text-indigo-900">{{ activePatient.name }}</p>
-            <p class="text-xs text-indigo-700">Geburtsdatum: {{ activePatient.geburtsdatum }} | ID: {{ activePatient.id }}</p>
+            <p class="text-xs text-indigo-700">Geburtsdatum: {{ activePatient.geburtsdatum }} | ID: {{ activePatient.id }} | QR: {{ activePatient.qr_code }}</p>
           </div>
           <button @click="activePatient = null" class="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1 bg-white border border-red-200 rounded-md shadow-sm">
             Wechseln
@@ -257,14 +266,25 @@ const selectPatient = (patient) => {
   showNotification(`Patient ${patient.name} ausgewählt.`, 'success')
 }
 
-const simulateQrScan = () => {
-  if (patients.value.length === 0) {
-    showNotification('Keine Patienten in der Datenbank gefunden.', 'error')
-    return
+// QR-Scan-Simulation über das Backend (ideal für Präsentationen)
+const simulateQrScan = async (qrCode) => {
+  try {
+    showNotification(`Scanne Code (${qrCode})...`, 'success')
+
+    const response = await fetch(`http://127.0.0.1:8000/patient-by-qr/${qrCode}`)
+
+    if (response.ok) {
+      const patient = await response.json()
+      activePatient.value = patient
+      searchQuery.value = ''
+      showNotification(`Patientkarte erkannt: ${patient.name}!`, 'success')
+    } else {
+      showNotification('QR-Code in der Datenbank nicht gefunden.', 'error')
+    }
+  } catch (error) {
+    console.error('QR-Scan Fehler:', error)
+    showNotification('Verbindungsfehler beim QR-Scan.', 'error')
   }
-  const scanned = patients.value[0]
-  activePatient.value = scanned
-  showNotification(`QR-Code erfolgreich gescannt: ${scanned.name}`, 'success')
 }
 
 const toggleTag = (tag) => {
@@ -321,13 +341,11 @@ const generateDocument = async () => {
   try {
     showNotification('Generiere Verlaufsbericht für ' + activePatient.value.name + '...', 'success')
     
-    // Anfrage an das Backend mit der spezifischen Patienten-ID
     const response = await fetch(`http://127.0.0.1:8000/generate-doc/${activePatient.value.id}`, {
       method: 'GET'
     })
 
     if (response.ok) {
-      // Datei als Blob empfangen und Download starten
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')

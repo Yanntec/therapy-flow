@@ -94,7 +94,7 @@ def create_session(session_data: schemas.SessionCreate, db: Session = Depends(ge
     return {"status": "success", "session_id": db_session.id}
 
 
-# --- NEU: Dokument-Generierung nur für den aktiven Patienten ---
+# --- Dokument-Generierung nur für den aktiven Patienten ---
 
 @app.get("/generate-doc/{patient_id}")
 def generate_patient_document(patient_id: int, db: Session = Depends(get_db)):
@@ -146,3 +146,13 @@ def generate_patient_document(patient_id: int, db: Session = Depends(get_db)):
         filename=filename, 
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
+
+
+# --- NEU: Patient per QR-Code abfragen ---
+
+@app.get("/patient-by-qr/{qr_code}", response_model=schemas.PatientResponse)
+def get_patient_by_qr(qr_code: str, db: Session = Depends(get_db)):
+    patient = db.query(models.Patient).filter(models.Patient.qr_code == qr_code).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient mit diesem QR-Code nicht gefunden")
+    return patient
