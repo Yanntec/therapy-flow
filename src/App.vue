@@ -32,23 +32,14 @@
           </div>
 
           <div class="flex items-end space-x-2">
-            <button 
-              @click="simulateQrScan('QR-ANNA-001')" 
-              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-1 active:scale-95 text-sm"
+            <button
+              @click="openScanModal"
+              class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-2 active:scale-95 text-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
               </svg>
-              <span>Scan Anna</span>
-            </button>
-            <button 
-              @click="simulateQrScan('QR-MAX-002')" 
-              class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-1 active:scale-95 text-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-              </svg>
-              <span>Scan Max</span>
+              <span>QR-Code scannen</span>
             </button>
           </div>
         </div>
@@ -72,11 +63,16 @@
           <div>
             <span class="text-xs font-bold uppercase tracking-wider text-indigo-600">Aktiver Patient</span>
             <p class="text-lg font-bold text-indigo-900">{{ activePatient.name }}</p>
-            <p class="text-xs text-indigo-700">Geburtsdatum: {{ activePatient.geburtsdatum }} | ID: {{ activePatient.id }} | QR: {{ activePatient.qr_code }}</p>
+            <p class="text-xs text-indigo-700">Geburtsdatum: {{ activePatient.geburtsdatum }} | ID: {{ activePatient.id }}</p>
           </div>
-          <button @click="activePatient = null" class="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1 bg-white border border-red-200 rounded-md shadow-sm">
-            Wechseln
-          </button>
+          <div class="flex items-center space-x-2">
+            <button @click="openQrModal" class="text-sm text-indigo-700 hover:text-indigo-900 font-medium px-3 py-1 bg-white border border-indigo-200 rounded-md shadow-sm">
+              QR-Code
+            </button>
+            <button @click="activePatient = null" class="text-sm text-red-600 hover:text-red-800 font-medium px-3 py-1 bg-white border border-red-200 rounded-md shadow-sm">
+              Wechseln
+            </button>
+          </div>
         </div>
       </section>
 
@@ -180,11 +176,57 @@
         </div>
         <h3 class="text-xl font-bold text-slate-800">Erfolgreich gespeichert!</h3>
         <p class="text-sm text-slate-600">Die Sitzung und alle Notizen wurden sicher in der Datenbank hinterlegt.</p>
-        <button 
-          @click="showSuccessModal = false" 
+        <button
+          @click="showSuccessModal = false"
           class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl shadow transition active:scale-95"
         >
           Super, weiter arbeiten
+        </button>
+      </div>
+    </div>
+
+    <!-- QR-Code Modal: Anzeigen, Drucken, Herunterladen -->
+    <div v-if="showQrModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 print:hidden">
+      <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
+        <h3 class="text-xl font-bold text-slate-800">QR-Code – {{ activePatient?.name }}</h3>
+        <p class="text-xs text-slate-500">Dieser Code identifiziert ausschließlich diesen Patienten. Bei Verlust eines Ausdrucks bitte neu generieren.</p>
+
+        <div class="flex justify-center">
+          <img v-if="qrImageUrl" :src="qrImageUrl" alt="QR-Code" class="w-56 h-56 border border-slate-200 rounded-lg p-2" />
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <button @click="printQrCode" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg shadow transition active:scale-95 text-sm">
+            Drucken
+          </button>
+          <button @click="downloadQrCode" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-2.5 rounded-lg transition active:scale-95 text-sm">
+            Als PNG speichern
+          </button>
+        </div>
+        <button @click="regenerateQrCode" class="w-full text-sm text-amber-700 hover:text-amber-900 font-medium py-2 rounded-lg border border-amber-200 bg-amber-50 hover:bg-amber-100 transition active:scale-95">
+          Neuen Code generieren (alter Ausdruck wird ungültig)
+        </button>
+        <button @click="showQrModal = false" class="w-full text-slate-500 hover:text-slate-700 font-medium py-2 text-sm">
+          Schließen
+        </button>
+      </div>
+    </div>
+
+    <!-- Druckbereich: nur beim Drucken sichtbar -->
+    <div v-if="activePatient" id="qr-print-area" class="hidden">
+      <h2>{{ activePatient.name }}</h2>
+      <p>Geburtsdatum: {{ activePatient.geburtsdatum }}</p>
+      <img v-if="qrImageUrl" :src="qrImageUrl" alt="QR-Code" />
+    </div>
+
+    <!-- Scan Modal: Kamerazugriff zum Einscannen eines Patienten-QR-Codes -->
+    <div v-if="showScanModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div class="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4">
+        <h3 class="text-xl font-bold text-slate-800">QR-Code scannen</h3>
+        <p class="text-xs text-slate-500">Patientenkarte vor die Kamera halten.</p>
+        <div id="qr-scanner-region" class="rounded-lg overflow-hidden"></div>
+        <button @click="closeScanModal" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 font-medium py-2.5 rounded-lg transition active:scale-95 text-sm">
+          Abbrechen
         </button>
       </div>
     </div>
@@ -193,7 +235,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { Html5QrcodeScanner } from 'html5-qrcode'
 
 // Reaktive Variablen für Daten aus dem FastAPI-Backend
 const patients = ref([])
@@ -248,6 +291,10 @@ const customNotes = ref('')
 const selectedTemplate = ref(1)
 const notification = ref(null)
 const showSuccessModal = ref(false)
+const showQrModal = ref(false)
+const showScanModal = ref(false)
+const qrImgCacheBuster = ref(0)
+let qrScanner = null
 
 // Fuzzy-Search / Filter Logik für Patienten
 const filteredPatients = computed(() => {
@@ -259,6 +306,12 @@ const filteredPatients = computed(() => {
   )
 })
 
+// QR-Code-Bild-URL für den aktiven Patienten (Cache-Buster nach Neu-Generierung)
+const qrImageUrl = computed(() => {
+  if (!activePatient.value) return ''
+  return `http://127.0.0.1:8000/patients/${activePatient.value.id}/qr-image?v=${qrImgCacheBuster.value}`
+})
+
 // Funktionen
 const selectPatient = (patient) => {
   activePatient.value = patient
@@ -266,11 +319,9 @@ const selectPatient = (patient) => {
   showNotification(`Patient ${patient.name} ausgewählt.`, 'success')
 }
 
-// QR-Scan-Simulation über das Backend (ideal für Präsentationen)
-const simulateQrScan = async (qrCode) => {
+// Patient anhand eines gescannten/eingegebenen QR-Codes laden
+const handleQrScan = async (qrCode) => {
   try {
-    showNotification(`Scanne Code (${qrCode})...`, 'success')
-
     const response = await fetch(`http://127.0.0.1:8000/patient-by-qr/${qrCode}`)
 
     if (response.ok) {
@@ -285,6 +336,91 @@ const simulateQrScan = async (qrCode) => {
     console.error('QR-Scan Fehler:', error)
     showNotification('Verbindungsfehler beim QR-Scan.', 'error')
   }
+}
+
+// --- QR-Code Anzeige / Drucken / Download ---
+
+const openQrModal = () => {
+  showQrModal.value = true
+}
+
+const printQrCode = () => {
+  window.print()
+}
+
+const downloadQrCode = async () => {
+  if (!activePatient.value) return
+  try {
+    const response = await fetch(qrImageUrl.value)
+    if (!response.ok) throw new Error('QR-Bild konnte nicht geladen werden.')
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `QR-Code_${activePatient.value.name.replace(' ', '_')}.png`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('QR-Download-Fehler:', error)
+    showNotification('QR-Code konnte nicht heruntergeladen werden.', 'error')
+  }
+}
+
+const regenerateQrCode = async () => {
+  if (!activePatient.value) return
+  const confirmed = window.confirm(
+    'Wirklich einen neuen QR-Code generieren? Bereits ausgedruckte Codes für diesen Patienten funktionieren danach nicht mehr.'
+  )
+  if (!confirmed) return
+
+  try {
+    const response = await fetch(`http://127.0.0.1:8000/patients/${activePatient.value.id}/regenerate-qr`, {
+      method: 'POST'
+    })
+    if (response.ok) {
+      const updated = await response.json()
+      activePatient.value = updated
+      qrImgCacheBuster.value++
+      showNotification('Neuer QR-Code wurde generiert.', 'success')
+    } else {
+      showNotification('QR-Code konnte nicht neu generiert werden.', 'error')
+    }
+  } catch (error) {
+    console.error('QR-Regenerierungs-Fehler:', error)
+    showNotification('Verbindungsfehler bei der QR-Code-Neugenerierung.', 'error')
+  }
+}
+
+// --- QR-Code per Kamera scannen ---
+
+const openScanModal = () => {
+  showScanModal.value = true
+  nextTick(() => {
+    qrScanner = new Html5QrcodeScanner(
+      'qr-scanner-region',
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      /* verbose= */ false
+    )
+    qrScanner.render(
+      (decodedText) => {
+        closeScanModal()
+        handleQrScan(decodedText)
+      },
+      () => {
+        // Kein Code im aktuellen Kamerabild erkannt - kein Fehler, wird laufend erneut versucht
+      }
+    )
+  })
+}
+
+const closeScanModal = () => {
+  if (qrScanner) {
+    qrScanner.clear().catch(() => {})
+    qrScanner = null
+  }
+  showScanModal.value = false
 }
 
 const toggleTag = (tag) => {
@@ -372,3 +508,29 @@ const showNotification = (message, type = 'success') => {
   }, 4000)
 }
 </script>
+
+<style>
+/* Beim Drucken (z.B. für den QR-Code) nur den Druckbereich zeigen */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #qr-print-area,
+  #qr-print-area * {
+    visibility: visible;
+  }
+  #qr-print-area {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    text-align: center;
+  }
+  #qr-print-area img {
+    width: 240px;
+    height: 240px;
+    margin: 1rem auto;
+  }
+}
+</style>

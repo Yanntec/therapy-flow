@@ -1,11 +1,14 @@
 import os
+import io
+import secrets
 from fastapi import FastAPI, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import date
 from docx import Document
+import qrcode
 
 import models
 import schemas
@@ -29,8 +32,8 @@ models.Base.metadata.create_all(bind=engine)
 def init_db():
     db = SessionLocal()
     if db.query(models.Patient).count() == 0:
-        db.add(models.Patient(name="Anna Schmidt", geburtsdatum="14.05.1995", qr_code="QR-ANNA-001"))
-        db.add(models.Patient(name="Max Mustermann", geburtsdatum="14.05.1995", qr_code="QR-MAX-002"))
+        db.add(models.Patient(name="Anna Schmidt", geburtsdatum="14.05.1995", qr_code=secrets.token_urlsafe(16)))
+        db.add(models.Patient(name="Max Mustermann", geburtsdatum="14.05.1995", qr_code=secrets.token_urlsafe(16)))
         db.commit()
     db.close()
 
@@ -155,4 +158,39 @@ def get_patient_by_qr(qr_code: str, db: Session = Depends(get_db)):
     patient = db.query(models.Patient).filter(models.Patient.qr_code == qr_code).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient mit diesem QR-Code nicht gefunden")
+    return patient
+
+
+# --- NEU: QR-Code als Bild ausgeben (zum Anzeigen/Drucken/Download) ---
+
+@app.get("/patients/{patient_id}/qr-image")
+def get_patient_qr_image(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient nicht gefunden")
+
+    img = qrcode.make(patient.qr_code, box_size=10, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+# --- NEU: QR-Code eines Patienten neu generieren (z.B. wenn ein Ausdruck verloren geht) ---
+
+@app.post("/patients/{patient_id}/regenerate-qr", response_model=schemas.PatientResponse)
+def regenerate_patient_qr(patient_id: int, db: Session = Depends(get_db)):
+    patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient nicht gefunden")
+
+    # Zufälliger, nicht erratbarer Token - unabhängig von Name/ID des Patienten
+    patient.qr_code = secrets.token_urlsafe(16)
+    db.commit()
+    db.refresh(patient)
     return patient
