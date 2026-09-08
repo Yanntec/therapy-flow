@@ -16,21 +16,21 @@ from database import engine, get_db, SessionLocal
 
 app = FastAPI(title="TherapieFlow API", version="1.0")
 
-# CORS aktivieren
+# erstmal alles offen für localhost-testing, für den scharfen Betrieb enger machen!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Erlaubt Anfragen von allen Quellen (für die Entwicklung ideal)
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Erlaubt alle HTTP-Methoden (GET, POST, etc.)
-    allow_headers=["*"],  # Erlaubt alle Header
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# 1. Tabellen automatisch erstellen
 models.Base.metadata.create_all(bind=engine)
 
 
 def init_db():
     db = SessionLocal()
+    # beim allerersten Start ist die Tabelle leer, dann 2 Test-Patienten reinpacken
     if db.query(models.Patient).count() == 0:
         db.add(models.Patient(name="Anna Schmidt", geburtsdatum="14.05.1995", qr_code=secrets.token_urlsafe(16)))
         db.add(models.Patient(name="Max Mustermann", geburtsdatum="14.05.1995", qr_code=secrets.token_urlsafe(16)))
@@ -43,8 +43,6 @@ init_db()
 def get_patients(db: Session = Depends(get_db)):
     patients = db.query(models.Patient).all()
     return patients
-
-# --- Endpunkte für Tags und Textbausteine ---
 
 @app.get("/tags")
 def get_tags():
@@ -66,11 +64,8 @@ def get_textbausteine():
         ]
     }
 
-# -----------------------------------------------
-
 @app.post("/sessions")
 def create_session(session_data: schemas.SessionCreate, db: Session = Depends(get_db)):
-    # 1. Session anlegen
     db_session = models.Session(
         patient_id=session_data.patient_id,
         therapeut_id=session_data.therapeut_id
@@ -79,12 +74,12 @@ def create_session(session_data: schemas.SessionCreate, db: Session = Depends(ge
     db.commit()
     db.refresh(db_session)
 
-    # 2. Tags speichern
     for tag in session_data.tags:
         db_tag = models.SessionTag(sessions_id=db_session.id, tag=tag)
         db.add(db_tag)
 
-    # 3. Notiz speichern
+    # nur speichern wenn wirklich was drinsteht, sonst haben wir am ende
+    # leere notiz-zeilen für jede session in der db
     if session_data.freitext or session_data.textbaustein_id:
         db_note = models.Note(
             sessions_id=db_session.id,
@@ -97,19 +92,14 @@ def create_session(session_data: schemas.SessionCreate, db: Session = Depends(ge
     return {"status": "success", "session_id": db_session.id}
 
 
-# --- Dokument-Generierung nur für den aktiven Patienten ---
-
 @app.get("/generate-doc/{patient_id}")
 def generate_patient_document(patient_id: int, db: Session = Depends(get_db)):
-    # 1. Patient aus der Datenbank laden
     patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient nicht gefunden")
 
-    # 2. NUR die Sitzungen holen, die exakt zu dieser patient_id gehören
     sessions = db.query(models.Session).filter(models.Session.patient_id == patient_id).all()
 
-    # 3. Word-Dokument erstellen
     doc = Document()
     doc.add_heading(f"Verlaufsbericht: {patient.name}", level=1)
     doc.add_paragraph(f"Geburtsdatum: {patient.geburtsdatum}")
@@ -122,14 +112,12 @@ def generate_patient_document(patient_id: int, db: Session = Depends(get_db)):
     else:
         for idx, session in enumerate(sessions, start=1):
             doc.add_heading(f"Sitzung {idx}", level=3)
-            
-            # Zugehörige Tags für diese Sitzung abrufen
+
             tags = db.query(models.SessionTag).filter(models.SessionTag.sessions_id == session.id).all()
             tags_str = ", ".join([t.tag for t in tags])
             if tags_str:
                 doc.add_paragraph(f"Schwerpunkte / Tags: {tags_str}")
-            
-            # Zugehörige Notiz für diese Sitzung abrufen
+
             note = db.query(models.Note).filter(models.Note.sessions_id == session.id).first()
             if note and note.freitext:
                 doc.add_paragraph(f"Notizen:\n{note.freitext}")
@@ -138,20 +126,17 @@ def generate_patient_document(patient_id: int, db: Session = Depends(get_db)):
             
             doc.add_paragraph("-" * 40)
 
-    # 4. Datei temporär speichern
     filename = f"Verlaufsbericht_{patient.name.replace(' ', '_')}.docx"
+    # /tmp gibts unter windows so nicht, deshalb hier einfach ins arbeitsverzeichnis speichern
     file_path = os.path.join("/tmp", filename) if os.name != 'nt' else filename
     doc.save(file_path)
 
-    # 5. Als Datei an den Browser zurücksenden
     return FileResponse(
         path=file_path, 
         filename=filename, 
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
 
-
-# --- NEU: Patient per QR-Code abfragen ---
 
 @app.get("/patient-by-qr/{qr_code}", response_model=schemas.PatientResponse)
 def get_patient_by_qr(qr_code: str, db: Session = Depends(get_db)):
@@ -161,14 +146,14 @@ def get_patient_by_qr(qr_code: str, db: Session = Depends(get_db)):
     return patient
 
 
-# --- NEU: QR-Code als Bild ausgeben (zum Anzeigen/Drucken/Download) ---
-
 @app.get("/patients/{patient_id}/qr-image")
 def get_patient_qr_image(patient_id: int, db: Session = Depends(get_db)):
     patient = db.query(models.Patient).filter(models.Patient.id == patient_id).first()
     if not patient:
         raise HTTPException(status_code=404, detail="Patient nicht gefunden")
 
+    # bild landet nirgends auf der platte, wird nur im ram gebaut und direkt
+    # als stream durchgereicht - spart uns das aufräumen von temp-dateien
     img = qrcode.make(patient.qr_code, box_size=10, border=2)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -177,11 +162,9 @@ def get_patient_qr_image(patient_id: int, db: Session = Depends(get_db)):
     return StreamingResponse(
         buf,
         media_type="image/png",
-        headers={"Cache-Control": "no-store"},
+        headers={"Cache-Control": "no-store"},  # sonst zeigt der browser nach nem neuen code noch den alten
     )
 
-
-# --- NEU: QR-Code eines Patienten neu generieren (z.B. wenn ein Ausdruck verloren geht) ---
 
 @app.post("/patients/{patient_id}/regenerate-qr", response_model=schemas.PatientResponse)
 def regenerate_patient_qr(patient_id: int, db: Session = Depends(get_db)):
@@ -189,7 +172,8 @@ def regenerate_patient_qr(patient_id: int, db: Session = Depends(get_db)):
     if not patient:
         raise HTTPException(status_code=404, detail="Patient nicht gefunden")
 
-    # Zufälliger, nicht erratbarer Token - unabhängig von Name/ID des Patienten
+    # random token, hat nix mit name oder id zu tun - sonst könnte man
+    # den code für andere patienten erraten
     patient.qr_code = secrets.token_urlsafe(16)
     db.commit()
     db.refresh(patient)

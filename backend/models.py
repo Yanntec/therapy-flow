@@ -17,12 +17,16 @@ class Session(Base):
     datum = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
     therapeut_id = Column(String(100))
 
+# sessions_id + tag zusammen als PK, damit derselbe tag nicht doppelt an
+# einer session hängen kann
 class SessionTag(Base):
     __tablename__ = "sessions_tags"
 
     sessions_id = Column(Integer, ForeignKey("sessions.id", ondelete="CASCADE"), primary_key=True)
     tag = Column(String(100), nullable=False, primary_key=True)
 
+# sessions_id ist hier die PK -> es kann also nur eine Notiz pro Session geben,
+# nicht mehrere
 class Note(Base):
     __tablename__ = "notes"
 

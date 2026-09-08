@@ -2,7 +2,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-# Erstellt automatisch eine lokale Datei namens 'therapy_flow.db' im Backend-Ordner
+# sqlite datei wird automatisch angelegt falls sie noch nicht existiert, liegt
+# einfach hier im backend ordner
 SQLALCHEMY_DATABASE_URL = "sqlite:///./therapy_flow.db"
 
 engine = create_engine(

@@ -12,7 +12,7 @@ class PatientResponse(BaseModel):
 
 class SessionCreate(BaseModel):
     patient_id: int
-    therapeut_id: Optional[str] = "Nicole"
+    therapeut_id: Optional[str] = "Nicole"  # solang nur eine therapeutin das nutzt, reicht der default
     tags: List[str] = []
     freitext: Optional[str] = ""
     textbaustein_id: Optional[int] = None
