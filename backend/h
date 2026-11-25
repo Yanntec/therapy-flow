@@ -1,0 +1,1 @@
+python3.12 -c "from database import engine; from sqlalchemy import text; conn=engine.connect(); conn.execute(text('ALTER TABLE patients ADD COLUMN user_id INTEGER REFERENCES users(id)')); conn.execute(text('UPDATE patients SET user_id = 1 WHERE user_id IS NULL')); conn.commit(); conn.close(); print('Patient ownership column added and existing patients assigned to user 1.')"

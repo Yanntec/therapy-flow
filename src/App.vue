@@ -1,14 +1,29 @@
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+  <!-- Show login when the user is not authenticated -->
+  <LoginForm
+    v-if="!isAuthenticated"
+    @authenticated="handleAuthenticated"
+    
+    />
+
+  <!-- Show the existing dashboard after login -->
+  <div v-else class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
     <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center">
       <div>
         <h1 class="text-xl font-bold">Praxis-Dokumentation</h1>
         <p class="text-xs text-indigo-200">Digitales Session-Tracking & Berichte</p>
       </div>
-      <div class="flex items-center space-x-2">
-        <span class="inline-block w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></span>
-        <span class="text-xs font-medium">System Online (MySQL + FastAPI)</span>
-      </div>
+  <div class="flex items-center space-x-3">
+    <span class="text-xs font-medium">
+    System Online (FastAPI)
+    </span>
+
+  <button
+    @click="logout"
+    class="bg-white text-indigo-700 px-3 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-50">
+    Logout
+  </button>
+</div>
     </header>
 
     <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6 space-y-6">
@@ -31,18 +46,76 @@
             />
           </div>
 
-          <div class="flex items-end space-x-2">
-            <button
-              @click="openScanModal"
-              class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-2 active:scale-95 text-sm"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-              </svg>
-              <span>QR-Code scannen</span>
-            </button>
-          </div>
+          
+      <div class="flex items-end space-x-2">
+        <button
+        @click="showPatientForm = !showPatientForm"
+        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-3 rounded-lg transition text-sm"
+        >
+        + Neuer Patient
+        </button>
+
+        <button
+        @click="openScanModal"
+        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-3 rounded-lg transition flex items-center justify-center space-x-2 active:scale-95 text-sm"
+        >
+        <span>QR-Code scannen</span>
+        </button>
+      </div>
+
         </div>
+
+
+<!-- New patient registration form -->
+<div
+  v-if="showPatientForm"
+  class="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-lg space-y-3"
+>
+  <h3 class="font-semibold text-emerald-800">
+    Neuen Patienten registrieren
+  </h3>
+
+  <div>
+    <label class="block text-sm font-medium text-slate-600 mb-1">
+      Name
+    </label>
+    <input
+      v-model="newPatient.name"
+      type="text"
+      placeholder="Vor- und Nachname"
+      class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+    />
+  </div>
+
+  <div>
+    <label class="block text-sm font-medium text-slate-600 mb-1">
+      Geburtsdatum
+    </label>
+    <input
+      v-model="newPatient.geburtsdatum"
+      type="text"
+      placeholder="TT.MM.JJJJ"
+      class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+    />
+  </div>
+
+  <div class="flex gap-2">
+    <button
+      @click="registerPatient"
+      :disabled="isRegistering"
+      class="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 rounded-lg"
+    >
+      {{ isRegistering ? 'Speichern...' : 'Patient speichern' }}
+    </button>
+
+    <button
+      @click="showPatientForm = false"
+      class="px-4 py-3 bg-white border border-slate-300 rounded-lg"
+    >
+      Abbrechen
+    </button>
+  </div>
+</div>
 
         <div v-if="filteredPatients.length > 0 && !activePatient" class="mt-3 border border-slate-200 rounded-lg divide-y divide-slate-100 bg-slate-50">
           <div 
@@ -237,43 +310,115 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Html5QrcodeScanner } from 'html5-qrcode'
+import LoginForm from './components/LoginForm.vue'
+
+// Authentication state
+const accessToken = ref(localStorage.getItem('access_token'))
+
+const isAuthenticated = computed(() => {
+  return Boolean(accessToken.value)
+})
+
+// Store the token after successful login
+const handleAuthenticated = (token) => {
+  accessToken.value = token
+  localStorage.setItem('access_token', token)
+
+  loadDashboardData()
+}
+
+// Remove the token when logging out
+const logout = () => {
+  if (qrScanner) {
+    qrScanner.clear().catch(() => {})
+    qrScanner = null
+  }
+
+  localStorage.removeItem('access_token')
+  accessToken.value = null
+
+  activePatient.value = null
+  showQrModal.value = false
+  showScanModal.value = false
+  showSuccessModal.value = false
+}
+
+// Add the JWT token to API requests
+const authHeaders = (headers = {}) => ({
+  ...headers,
+  Authorization: `Bearer ${accessToken.value}`
+})
 
 // Reaktive Variablen für Daten aus dem FastAPI-Backend
 const patients = ref([])
 const availableTags = ref([])
 const textBausteine = ref({})
 
-// Alles beim Start aus dem FastAPI-Backend laden
-onMounted(async () => {
+// Load dashboard data after authentication
+const loadDashboardData = async () => {
   try {
-    // 1. Patienten laden
-    const resPatients = await fetch('http://127.0.0.1:8000/patients')
+    // 1. Load patients
+    const resPatients = await fetch(
+      'http://127.0.0.1:8000/patients',
+      {
+        headers: authHeaders()
+      }
+    )
+
     if (resPatients.ok) {
       patients.value = await resPatients.json()
     } else {
       showNotification('Fehler beim Laden der Patienten.', 'error')
     }
 
-    // 2. Tags laden
-    const resTags = await fetch('http://127.0.0.1:8000/tags')
+    // 2. Load tags
+    const resTags = await fetch(
+      'http://127.0.0.1:8000/tags',
+      {
+        headers: authHeaders()
+      }
+    )
+
     if (resTags.ok) {
       availableTags.value = await resTags.json()
     }
 
-    // 3. Textbausteine laden
-    const resBausteine = await fetch('http://127.0.0.1:8000/textbausteine')
+    // 3. Load text blocks
+    const resBausteine = await fetch(
+      'http://127.0.0.1:8000/textbausteine',
+      {
+        headers: authHeaders()
+      }
+    )
+
     if (resBausteine.ok) {
       textBausteine.value = await resBausteine.json()
-      // Ersten Baustein als Standard vorauswählen
+
       const firstCategory = Object.keys(textBausteine.value)[0]
-      if (firstCategory && textBausteine.value[firstCategory].length > 0) {
-        selectedTextBaustein.value = textBausteine.value[firstCategory][0]
+
+      if (
+        firstCategory &&
+        textBausteine.value[firstCategory].length > 0
+      ) {
+        selectedTextBaustein.value =
+          textBausteine.value[firstCategory][0]
       }
     }
 
   } catch (error) {
     console.error('Verbindungsfehler:', error)
-    showNotification('Keine Verbindung zum FastAPI-Backend möglich.', 'error')
+
+    showNotification(
+      'Keine Verbindung zum FastAPI-Backend möglich.',
+      'error'
+    )
+  }
+}
+
+// Only load dashboard data if already logged in
+onMounted(() => {
+  if (isAuthenticated.value) {
+    loadDashboardData()
   }
 })
 
@@ -296,6 +441,14 @@ const showScanModal = ref(false)
 const qrImgCacheBuster = ref(0)
 let qrScanner = null
 
+// New patient registration
+const showPatientForm = ref(false)
+const isRegistering = ref(false)
+
+const newPatient = ref({
+  name: '',
+  geburtsdatum: ''
+})
 // Fuzzy-Search / Filter Logik für Patienten
 const filteredPatients = computed(() => {
   if (!searchQuery.value) return []
@@ -307,27 +460,118 @@ const filteredPatients = computed(() => {
 })
 
 // QR-Code-Bild-URL für den aktiven Patienten (Cache-Buster nach Neu-Generierung)
-const qrImageUrl = computed(() => {
-  if (!activePatient.value) return ''
-  return `http://127.0.0.1:8000/patients/${activePatient.value.id}/qr-image?v=${qrImgCacheBuster.value}`
-})
+const qrImageUrl = ref('')
+
+const loadQrImage = async () => {
+  if (!activePatient.value) {
+    qrImageUrl.value = ''
+    return
+  }
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/patients/${activePatient.value.id}/qr-image?v=${qrImgCacheBuster.value}`,
+      {
+        headers: authHeaders()
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Could not load QR image.')
+    }
+
+    const imageBlob = await response.blob()
+    const newImageUrl = URL.createObjectURL(imageBlob)
+
+    if (qrImageUrl.value.startsWith('blob:')) {
+      URL.revokeObjectURL(qrImageUrl.value)
+    }
+
+    qrImageUrl.value = newImageUrl
+
+  } catch (error) {
+    console.error('QR image loading error:', error)
+    qrImageUrl.value = ''
+  }
+}
+
+
+// Register a new patient
+const registerPatient = async () => {
+  if (!newPatient.value.name.trim() || !newPatient.value.geburtsdatum.trim()) {
+    showNotification('Bitte Name und Geburtsdatum eingeben.', 'error')
+    return
+  }
+
+  isRegistering.value = true
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/patients', {
+      method: 'POST',
+      headers: authHeaders({
+        'Content-Type': 'application/json'
+      }),
+      body: JSON.stringify({
+        name: newPatient.value.name.trim(),
+        geburtsdatum: newPatient.value.geburtsdatum.trim()
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error('Patient konnte nicht gespeichert werden.')
+    }
+
+    const createdPatient = await response.json()
+
+    // Add the new patient to the existing list
+    patients.value.push(createdPatient)
+
+    // Reset the form
+    newPatient.value = {
+      name: '',
+      geburtsdatum: ''
+    }
+
+    showPatientForm.value = false
+
+    showNotification(
+      `Patient ${createdPatient.name} erfolgreich registriert!`,
+      'success'
+    )
+
+  } catch (error) {
+    console.error('Patient registration error:', error)
+    showNotification('Fehler bei der Patientenregistrierung.', 'error')
+  } finally {
+    isRegistering.value = false
+  }
+}
 
 // Funktionen
 const selectPatient = (patient) => {
   activePatient.value = patient
   searchQuery.value = ''
+  loadQrImage()
   showNotification(`Patient ${patient.name} ausgewählt.`, 'success')
 }
 
 // Patient anhand eines gescannten/eingegebenen QR-Codes laden
 const handleQrScan = async (qrCode) => {
   try {
-    const response = await fetch(`http://127.0.0.1:8000/patient-by-qr/${qrCode}`)
+const response = await fetch(
+  `http://127.0.0.1:8000/patient-by-qr/${qrCode}`,
+  {
+    headers: authHeaders()
+  }
+)
 
     if (response.ok) {
       const patient = await response.json()
       activePatient.value = patient
       searchQuery.value = ''
+      activePatient.value = patient
+      searchQuery.value = ''
+      loadQrImage()
       showNotification(`Patientkarte erkannt: ${patient.name}!`, 'success')
     } else {
       showNotification('QR-Code in der Datenbank nicht gefunden.', 'error')
@@ -351,7 +595,11 @@ const printQrCode = () => {
 const downloadQrCode = async () => {
   if (!activePatient.value) return
   try {
-    const response = await fetch(qrImageUrl.value)
+
+const response = await fetch(qrImageUrl.value, {
+  headers: authHeaders()
+})
+
     if (!response.ok) throw new Error('QR-Bild konnte nicht geladen werden.')
     const blob = await response.blob()
     const url = window.URL.createObjectURL(blob)
@@ -377,7 +625,8 @@ const regenerateQrCode = async () => {
 
   try {
     const response = await fetch(`http://127.0.0.1:8000/patients/${activePatient.value.id}/regenerate-qr`, {
-      method: 'POST'
+      method: 'POST',
+      headers: authHeader ()
     })
     if (response.ok) {
       const updated = await response.json()
@@ -448,9 +697,9 @@ const saveSession = async () => {
   try {
     const response = await fetch('http://127.0.0.1:8000/sessions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+headers: authHeaders({
+  'Content-Type': 'application/json'
+}),
       body: JSON.stringify(payload)
     })
 
@@ -477,10 +726,13 @@ const generateDocument = async () => {
   try {
     showNotification('Generiere Verlaufsbericht für ' + activePatient.value.name + '...', 'success')
     
-    const response = await fetch(`http://127.0.0.1:8000/generate-doc/${activePatient.value.id}`, {
-      method: 'GET'
-    })
-
+const response = await fetch(
+  `http://127.0.0.1:8000/generate-doc/${activePatient.value.id}`,
+  {
+    method: 'GET',
+    headers: authHeaders()
+  }
+)
     if (response.ok) {
       const blob = await response.blob()
       const url = window.URL.createObjectURL(blob)
