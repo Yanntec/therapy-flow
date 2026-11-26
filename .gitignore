@@ -38,3 +38,8 @@ __screenshots__/
 # Vite
 *.timestamp-*-*.mjs
 __pycache__/
+
+# Local databases - never commit patient data
+*.db
+*.sqlite
+*.sqlite3
