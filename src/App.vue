@@ -1,14 +1,21 @@
 <template>
-  <!-- Show login when the user is not authenticated -->
-  <LoginForm
-    v-if="!isAuthenticated"
-    @authenticated="handleAuthenticated"
-    
-    />
+<!-- Login screen -->
+<LoginForm
+  v-if="!isAuthenticated"
+  @authenticated="handleAuthenticated"
+/>
 
-  <!-- Show the existing dashboard after login -->
-  <div v-else class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
-    <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center">
+<!-- Admin dashboard -->
+<AdminDashboard
+  v-else-if="currentUser?.is_admin"
+  :access-token="accessToken"
+  :current-user-id="currentUser.id"
+  @logout="logout"
+/>
+
+<!-- Normal patient dashboard -->
+<div v-else class="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans">
+  <header class="bg-indigo-600 text-white shadow-md p-4 flex justify-between items-center">
       <div>
         <h1 class="text-xl font-bold">Praxis-Dokumentation</h1>
         <p class="text-xs text-indigo-200">Digitales Session-Tracking & Berichte</p>
@@ -308,23 +315,25 @@
 </template>
 
 <script setup>
+import LoginForm from './components/LoginForm.vue'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Html5QrcodeScanner } from 'html5-qrcode'
-import LoginForm from './components/LoginForm.vue'
+import AdminDashboard from './components/AdminDashboard.vue'
 
 // Authentication state
 const accessToken = ref(localStorage.getItem('access_token'))
 
+const currentUser = ref(null)
 const isAuthenticated = computed(() => {
   return Boolean(accessToken.value)
 })
 
 // Store the token after successful login
-const handleAuthenticated = (token) => {
+const handleAuthenticated = async (token) => {
   accessToken.value = token
   localStorage.setItem('access_token', token)
 
-  loadDashboardData()
+  await loadCurrentUser()
 }
 
 // Remove the token when logging out
@@ -336,6 +345,7 @@ const logout = () => {
 
   localStorage.removeItem('access_token')
   accessToken.value = null
+  currentUser.value = null
 
   activePatient.value = null
   showQrModal.value = false
@@ -348,6 +358,36 @@ const authHeaders = (headers = {}) => ({
   ...headers,
   Authorization: `Bearer ${accessToken.value}`
 })
+
+// Get the currently logged-in user's profile
+const loadCurrentUser = async () => {
+  try {
+    const response = await fetch(
+      'http://127.0.0.1:8000/me',
+      {
+        headers: authHeaders()
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error('Session expired or authentication failed.')
+    }
+
+    currentUser.value = await response.json()
+
+    // Only normal users need the patient dashboard data
+    if (!currentUser.value.is_admin) {
+      await loadDashboardData()
+    }
+
+  } catch (error) {
+    console.error('Authentication error:', error)
+
+    logout()
+
+    alert('Your session has expired. Please log in again.')
+  }
+}
 
 // Reaktive Variablen für Daten aus dem FastAPI-Backend
 const patients = ref([])
@@ -418,7 +458,7 @@ const loadDashboardData = async () => {
 // Only load dashboard data if already logged in
 onMounted(() => {
   if (isAuthenticated.value) {
-    loadDashboardData()
+    loadCurrentUser()
   }
 })
 
@@ -626,7 +666,7 @@ const regenerateQrCode = async () => {
   try {
     const response = await fetch(`http://127.0.0.1:8000/patients/${activePatient.value.id}/regenerate-qr`, {
       method: 'POST',
-      headers: authHeader ()
+      headers: authHeaders()
     })
     if (response.ok) {
       const updated = await response.json()
