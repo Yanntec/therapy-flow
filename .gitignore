@@ -43,3 +43,15 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example

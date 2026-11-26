@@ -315,6 +315,7 @@
 </template>
 
 <script setup>
+import API_URL from './api'
 import LoginForm from './components/LoginForm.vue'
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { Html5QrcodeScanner } from 'html5-qrcode'
@@ -363,7 +364,7 @@ const authHeaders = (headers = {}) => ({
 const loadCurrentUser = async () => {
   try {
     const response = await fetch(
-      'http://127.0.0.1:8000/me',
+      `${API_URL}/me`,
       {
         headers: authHeaders()
       }
@@ -399,7 +400,7 @@ const loadDashboardData = async () => {
   try {
     // 1. Load patients
     const resPatients = await fetch(
-      'http://127.0.0.1:8000/patients',
+      `${API_URL}/patients`,
       {
         headers: authHeaders()
       }
@@ -413,7 +414,7 @@ const loadDashboardData = async () => {
 
     // 2. Load tags
     const resTags = await fetch(
-      'http://127.0.0.1:8000/tags',
+      `${API_URL}/tags`,
       {
         headers: authHeaders()
       }
@@ -425,7 +426,7 @@ const loadDashboardData = async () => {
 
     // 3. Load text blocks
     const resBausteine = await fetch(
-      'http://127.0.0.1:8000/textbausteine',
+      `${API_URL}/textbausteine`,
       {
         headers: authHeaders()
       }
@@ -510,7 +511,7 @@ const loadQrImage = async () => {
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:8000/patients/${activePatient.value.id}/qr-image?v=${qrImgCacheBuster.value}`,
+      `${API_URL}/patients/${activePatient.value.id}/qr-image?v=${qrImgCacheBuster.value}`,
       {
         headers: authHeaders()
       }
@@ -546,7 +547,7 @@ const registerPatient = async () => {
   isRegistering.value = true
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/patients', {
+    const response = await fetch(`${API_URL}/patients`, {
       method: 'POST',
       headers: authHeaders({
         'Content-Type': 'application/json'
@@ -599,7 +600,7 @@ const selectPatient = (patient) => {
 const handleQrScan = async (qrCode) => {
   try {
 const response = await fetch(
-  `http://127.0.0.1:8000/patient-by-qr/${qrCode}`,
+  `${API_URL}/patient-by-qr/${qrCode}`,
   {
     headers: authHeaders()
   }
@@ -664,7 +665,7 @@ const regenerateQrCode = async () => {
   if (!confirmed) return
 
   try {
-    const response = await fetch(`http://127.0.0.1:8000/patients/${activePatient.value.id}/regenerate-qr`, {
+    const response = await fetch(`${API_URL}/patients/${activePatient.value.id}/regenerate-qr`, {
       method: 'POST',
       headers: authHeaders()
     })
@@ -735,7 +736,7 @@ const saveSession = async () => {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/sessions', {
+    const response = await fetch(`${API_URL}/sessions`, {
       method: 'POST',
 headers: authHeaders({
   'Content-Type': 'application/json'
@@ -767,7 +768,7 @@ const generateDocument = async () => {
     showNotification('Generiere Verlaufsbericht für ' + activePatient.value.name + '...', 'success')
     
 const response = await fetch(
-  `http://127.0.0.1:8000/generate-doc/${activePatient.value.id}`,
+  `${API_URL}/generate-doc/${activePatient.value.id}`,
   {
     method: 'GET',
     headers: authHeaders()

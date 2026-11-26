@@ -104,10 +104,8 @@
 </template>
 
 <script setup>
+import API_URL from '../api'
 import { ref } from 'vue'
-
-// Backend address
-const API_URL = 'http://127.0.0.1:8000'
 
 // Form state
 const isRegister = ref(false)

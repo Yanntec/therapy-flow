@@ -259,6 +259,7 @@
 </template>
 
 <script setup>
+import API_URL from '../api'
 import { ref, computed, onMounted } from 'vue'
 
 const props = defineProps({
@@ -304,7 +305,7 @@ const toggleUserStatus = async (user) => {
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:8000/admin/users/${user.id}/status`,
+      `${API_URL}/admin/users/${user.id}/status`,
       {
         method: 'PATCH',
         headers: {
@@ -366,7 +367,7 @@ const toggleUserRole = async (user) => {
 
   try {
     const response = await fetch(
-      `http://127.0.0.1:8000/admin/users/${user.id}/role`,
+      `${API_URL}/admin/users/${user.id}/role`,
       {
         method: 'PATCH',
         headers: {
@@ -428,7 +429,7 @@ const loadUsers = async () => {
 
   try {
     const response = await fetch(
-      'http://127.0.0.1:8000/admin/users',
+      `${API_URL}/admin/users`,
       {
         headers: {
           Authorization: `Bearer ${props.accessToken}`

@@ -17,10 +17,19 @@ from database import engine, get_db, SessionLocal
 
 app = FastAPI(title="TherapieFlow API", version="1.0")
 
-# erstmal alles offen für localhost-testing, für den scharfen Betrieb enger machen!
+# Frontend URLs allowed to communicate with the backend
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        FRONTEND_URL,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,7 +130,9 @@ def init_db():
         db.commit()
     db.close()
 
-init_db()
+# Create test patients only when using the local SQLite database
+if not os.getenv("DATABASE_URL"):
+    init_db()
 
 @app.get("/me", response_model=schemas.CurrentUserResponse)
 def get_my_profile(
