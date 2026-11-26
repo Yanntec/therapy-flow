@@ -9,6 +9,7 @@
 <AdminDashboard
   v-else-if="currentUser?.is_admin"
   :access-token="accessToken"
+  :current-user-id="currentUser.id"
   @logout="logout"
 />
 
