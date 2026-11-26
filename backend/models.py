@@ -54,6 +54,7 @@ class GeneratedDocument(Base):
     template_id = Column(Integer, ForeignKey("templates.id", ondelete="CASCADE"), nullable=False)
     erstellt_am = Column(TIMESTAMP, server_default=text("CURRENT_TIMESTAMP"))
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -62,4 +63,11 @@ class User(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True)
+
+    role = Column(
+        String(50),
+        nullable=False,
+        server_default=text("'user'")
+    )
+
     is_admin = Column(Boolean, default=False)
