@@ -9,7 +9,7 @@ from typing import List
 from datetime import date
 from docx import Document
 import qrcode
-import auth
+import auth 
 
 import models
 import schemas
@@ -122,6 +122,12 @@ def init_db():
     db.close()
 
 init_db()
+
+@app.get("/me", response_model=schemas.CurrentUserResponse)
+def get_my_profile(
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    return current_user
 
 @app.get("/patients", response_model=List[schemas.PatientResponse])
 def get_patients(
@@ -349,3 +355,160 @@ def regenerate_patient_qr(
     db.commit()
     db.refresh(patient)
     return patient
+
+@app.get("/admin/test")
+def admin_test(
+    current_user: models.User = Depends(auth.get_current_admin)
+):
+    return {
+        "message": "Welcome to the TherapyFlow Admin Area!",
+        "admin": current_user.name,
+        "email": current_user.email
+    }
+
+@app.get("/admin/users")
+def get_all_users(
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(auth.get_current_admin)
+):
+    users = db.query(models.User).order_by(models.User.id).all()
+
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "is_active": user.is_active,
+            "is_admin": user.is_admin
+        }
+        for user in users
+    ]
+
+@app.get("/admin/users/{user_id}")
+def get_user_details(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(auth.get_current_admin)
+):
+    user = db.query(models.User).filter(
+        models.User.id == user_id
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    return {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin
+    }   
+
+@app.patch("/admin/users/{user_id}/status")
+def update_user_status(
+    user_id: int,
+    status_update: schemas.UserStatusUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(auth.get_current_admin)
+):
+    user = db.query(models.User).filter(
+        models.User.id == user_id
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Prevent an administrator from deactivating themselves
+    if user.id == current_admin.id and not status_update.is_active:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot deactivate your own account."
+        )
+
+    # Prevent deactivating the last active administrator
+    if user.is_admin and user.is_active and not status_update.is_active:
+        other_admins = db.query(models.User).filter(
+            models.User.is_admin.is_(True),
+            models.User.is_active.is_(True),
+            models.User.id != user.id
+        ).count()
+
+        if other_admins == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot deactivate the last active administrator."
+            )
+
+    user.is_active = status_update.is_active
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "User status updated successfully",
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin
+    }
+
+@app.patch("/admin/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    role_update: schemas.UserRoleUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.User = Depends(auth.get_current_admin)
+):
+    user = db.query(models.User).filter(
+        models.User.id == user_id
+    ).first()
+
+    if not user:
+        raise HTTPException(
+            status_code=404,
+            detail="User not found"
+        )
+
+    # Prevent administrators from removing their own admin privileges
+    if user.id == current_admin.id and not role_update.is_admin:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot remove your own admin privileges."
+        )
+
+    # Prevent removing the last active administrator
+    if user.is_admin and user.is_active and not role_update.is_admin:
+
+        other_admins = db.query(models.User).filter(
+            models.User.is_admin.is_(True),
+            models.User.is_active.is_(True),
+            models.User.id != user.id
+        ).count()
+
+        if other_admins == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove the last active administrator."
+            )
+
+    user.is_admin = role_update.is_admin
+
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "User role updated successfully",
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin
+    }

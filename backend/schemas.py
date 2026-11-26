@@ -46,3 +46,19 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class UserStatusUpdate(BaseModel):
+    is_active: bool
+
+class UserRoleUpdate(BaseModel):
+    is_admin: bool
+
+class CurrentUserResponse(BaseModel):
+    id: int
+    name: str
+    email: str
+    is_active: bool
+    is_admin: bool
+
+    class Config:
+        from_attributes = True
