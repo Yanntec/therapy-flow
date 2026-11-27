@@ -127,6 +127,7 @@ def init_db():
                 user_id=3
             )
         )
+        
         db.commit()
     db.close()
 
